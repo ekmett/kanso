@@ -31,6 +31,7 @@ pub fn app(f: Term, a: Term) -> Term { Term(Rc::new(Tm::App(f,a))) }
 pub fn var(i: Ix) -> Term { Term(Rc::new(Tm::Var(i))) }
 
 pub type Env = List<Value>;
+pub fn lookup(e: &Env, i: Ix) -> &Value { e.at(i).unwrap() }
 
 #[derive(Debug,PartialEq,Eq,Clone)]
 pub enum Val {
@@ -62,6 +63,8 @@ pub struct Spine(Option<Rc<Sp>>);
 pub fn sapp(s: &Spine, v: &Value) -> Spine { Spine(Some(Rc::new(Sp::App(s.clone(),v.clone())))) }
 pub const fn snil() -> Spine { Spine(None) }
 
+// direct interpreter with no imperative hackery
+
 #[inline]
 pub fn apply(fun: &Value, arg: Value) -> Value {
   match fun.borrow() {
@@ -70,15 +73,12 @@ pub fn apply(fun: &Value, arg: Value) -> Value {
   }
 }
 
-pub fn lookup(e: &Env, i: Ix) -> &Value { e.at(i).unwrap() }
-
 pub fn eval(e: &Env, t: &Term) -> Value {
   match t.borrow() {
     Tm::Var(i) => { lookup(e,*i).clone() }
     Tm::App(f,x) => { 
        let fv = eval(e,f);
-       let xv = eval(e,x);
-       apply(&fv,xv)
+       apply(&fv,eval(e,x))
     }
     Tm::Lam(n,b) => { vlam(e,*n,b) }
   }
