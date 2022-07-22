@@ -223,10 +223,10 @@ macro_rules! list {
     $(
        l = $crate::list::cons($x,l);
     )*
+    // TODO reverse parameter order with macro tricks, then just construct directly
     l.reverse()
   }}
 }
-pub use list;
 
 impl<A> Default for List<A> {
   fn default() -> List<A> { List(None) }
