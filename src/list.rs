@@ -1,38 +1,22 @@
 // extern crate tailcall;
 // use tailcall::tailcall;
-use std::cmp::{Ordering};
+use std::cmp::Ordering;
 use std::fmt;
 use std::rc::Rc;
+use std::convert::TryFrom;
 
-#[derive(Debug,Ord,PartialOrd)] // TODO: hand roll because these are wrong
-pub enum Node<T> {
-  Tip(T),
-  Bin(T,Tree<T>,Tree<T>)
-}
+#[derive(Debug,PartialEq,Eq,PartialOrd,Ord)] // TODO: hand roll because these are wrong
+// this is less 'correct' than enum { Tip(T), Bin(T,Tree<T>,Tree<T>) } but 
+// takes advantage of null compression and allows deriving common instances with the right
+// behavior. more correct would be Node<T>(T,Option<(Tree<T>,Tree<T>))
 
-impl <T: PartialEq> PartialEq for Node<T> {
-  fn eq(&self, other: &Self) -> bool {
-    match self {
-      Node::Tip(a) => match other {
-         Node::Tip(b) => a == b,
-         _ => false
-      }
-      Node::Bin(a,l,r) => match other {
-         Node::Bin(b,u,v) => a == b && l == u && r == v,
-         _ => false
-      }
-    }
-  }
-}
-
-impl <T: PartialEq
-
-impl <T: Eq> Eq for Node<T> {}
+struct Node<T>(T,N<T>,N<T>);
 
 type Tree<T> = Rc<Node<T>>;
+type N<T> = Option<Tree<T>>;
 
 #[derive(Debug,PartialEq,Eq)]
-pub struct Cell<T> { 
+struct Cell<T> { 
   size: u32,
   tree: Tree<T>,
   rest: Orc<T>
@@ -44,9 +28,10 @@ type Orc<T> = Option<Rc<Cell<T>>>;
 pub struct List<T>(Orc<T>);
 
 #[inline]
-fn tip<T>(a: T) -> Tree<T> { Rc::new(Node::Tip(a)) }
+fn tip<T>(a: T) -> Tree<T> { Rc::new(Node(a,None,None)) }
+
 #[inline]
-fn bin<T>(a: T, l: Tree<T>, r: Tree<T>) -> Tree<T> { Rc::new(Node::Bin(a,l,r)) }
+fn bin<T>(a: T, l: Tree<T>, r: Tree<T>) -> Tree<T> { Rc::new(Node(a,Some(l),Some(r))) }
 
 #[inline]
 fn cell<T>(size: u32, tree: Tree<T>, rest: Orc<T>) -> Orc<T> {
@@ -74,28 +59,29 @@ fn drop_tree<T>(k0: u32, ts0: u32, t0: Tree<T>, rest0: Orc<T>) -> Orc<T> {
   loop {
     ts >>= 1;
     match &*t {
-      Node::Tip(_) => break rest,
-      Node::Bin(_,l,r) => {
+      Node(_,Some::<Tree<T>>(l),Some::<Tree<T>>(r)) => {
         let bnd = 1 + ts;
         match k.cmp(&bnd) {
           Ordering::Less => {
             rest = cell(ts,r.clone(),rest);
+            let lp = l.clone();
             if k == 1 {
-              break cell(ts,l.clone(),rest);
+              break cell(ts,lp,rest);
             } else {
-              t = l.clone();
+              t = lp;
               k -= 1;
-              // continue
+              // continue down left branch
             }
           }
           Ordering::Equal => break cell(ts,r.clone(),rest),
           Ordering::Greater => {
             t = r.clone();
             k -= ts + 1
-            // continue
+            // continue down right branch
           }
         }
-      }
+      },
+      _ => break rest, // Tip(_)
     }
   }
 }
@@ -128,11 +114,11 @@ impl <T> List<T> {
   pub fn uncons(&self) -> Option<(&T, List<T>)> {
     self.0.as_ref().map(|c| 
       match &*c.tree {
-        Node::Tip(a) => (a, List(c.rest.clone())),
-        Node::Bin(a,l,r) => {
+        Node(a,Some(l),Some(r)) => {
           let branch_size = c.size >> 1;
           (a,List(cell(branch_size,l.clone(),cell(branch_size,r.clone(),c.rest.clone()))))
         }
+        Node(a,_,_) => (a, List(c.rest.clone())),
       }
     )
   }
@@ -145,39 +131,11 @@ impl <T> List<T> {
 
   pub fn drop(&self, n: u32) -> List<T> { List(drop_spine(self.0.clone(),n)) }
 
-}
+  //pub fn at(&self, n: u32) -> T where T : Clone {
+  //}
 
-impl <T : Clone> Iterator for List<T> { 
-  type Item = T;
-  fn next(&mut self) -> Option<T> {
-    let (h,t) = self.uncons()?;
-    let result = Some(h.clone());
-    self.0 = t.0;
-    result
-  }
-  fn size_hint(&self) -> (u32, Option<u32>) {
-    let n = usize::from(self.length());
-    (n, Some(n))
-  }
-}
-
-
-impl <A> fmt::Display for List<A> where
-  A : fmt::Display, 
-  A : Clone {
-  fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-    let mut delim = "[";
-    for a in self.clone() {
-      write!(f,"{}{}",delim,a)?;
-      delim = ", ";
-    }
-    write!(f,"]")
-  }
-}
-
-impl<A> List<A> {
-  pub fn reverse(self) -> List<A> where
-    A : Clone {
+  // TODO: destructive version with fewer constraints
+  pub fn reverse(self) -> List<T> where T : Clone {
     let mut acc = nil();
     let mut rest = self;
     loop {
@@ -192,6 +150,35 @@ impl<A> List<A> {
   }
 }
 
+impl <T : Clone> Iterator for List<T> { 
+  type Item = T;
+  fn next(&mut self) -> Option<T> {
+    let (h,t) = self.uncons()?;
+    let result = Some(h.clone());
+    self.0 = t.0;
+    result
+  }
+  fn size_hint(&self) -> (usize, Option<usize>) {
+    let n = usize::try_from(self.length()).unwrap();
+    (n, Some(n))
+  }
+}
+
+impl <A> fmt::Display for List<A> where
+  A : fmt::Display, 
+  A : Clone {
+  fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+    let mut delim = "[";
+    for a in self.clone() {
+      write!(f,"{}{}",delim,a)?;
+      delim = ", ";
+    }
+    write!(f,"]")
+  }
+}
+
+
+#[macro_export]
 macro_rules! list {
   [] => { $crate::list::nil() };
   [ $($x:expr),* ] => {{
@@ -202,6 +189,7 @@ macro_rules! list {
     l.reverse()
   }}
 }
+pub use list;
      
 impl<A> Default for List<A> {
   fn default() -> List<A> { List(None) } 
@@ -227,3 +215,4 @@ mod tests {
     assert_eq!(list![4,5,6],list![1,2,3,4,5,6].drop(3))
   }
 }
+

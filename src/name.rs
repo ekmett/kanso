@@ -1,0 +1,19 @@
+use lasso::{Key, Rodeo, RodeoReader, RodeoResolver, Spur};
+
+#[derive(Debug,Copy,Clone,PartialEq,Eq,PartialOrd,Ord)]
+#[repr(transparent)]
+pub struct Name(Spur);
+
+// TODO: set aside niches for _ as default() and maybe for a-z, use MSBs for counting?
+unsafe impl Key for Name {
+  unsafe fn into_usize(self) -> usize { self.0.into_usize() }
+  fn try_from_usize(int: usize) -> Option<Name> { Some(Name(Spur::try_from_usize(int)?)) }
+}
+
+impl Default for Name {
+  fn default() -> Self { Self::try_from_usize(0).unwrap() }
+}
+
+pub type Names = Rodeo<Name>;
+pub type NameReader = RodeoReader<Name>;
+pub type NameResolver = RodeoResolver<Name>;

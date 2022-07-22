@@ -1,5 +1,6 @@
-use std::num::NonZeroU32;
+use std::num::{NonZeroU32, TryFromIntError };
 use std::fmt::{self, Debug, Write};
+use std::convert::TryFrom;
 
 // this makes names able to be stored in Option<Id> in the same size by adding a niche
 
@@ -8,43 +9,57 @@ use std::fmt::{self, Debug, Write};
 pub struct Id(NonZeroU32);
 
 impl Id {
-  pub const fn into_inner(self) -> NonZeroU32 { self.0 }
-}
-
-pub unsafe trait Key : Copy + Eq {
-  fn as_usize(self) -> usize;
-  fn of_usize(i: usize) -> Option<Self>;
-}
-
-unsafe impl Key for Id {
   #[inline]
-  fn as_usize(self) -> usize { self.0.get() as usize - 1 }
+  pub fn new(i: u32) -> Option<Id> {
+    Some(Id(NonZeroU32::new(!i)?))
+  }
 
   #[inline]
-  fn of_usize(i: usize) -> Option<Self> {
-    if i < u32::max_value() as usize {
-      unsafe { Some(Id(NonZeroU32::new_unchecked(i as u32 + 1))) }
-    } else {
-      None
-    }
+  pub unsafe fn new_unchecked(i: u32) -> Self {
+    Id(NonZeroU32::new_unchecked(!i))
+  }
+
+  #[inline]
+  pub fn u32(self) -> u32 { !self.0.get() }
+
+  #[inline]
+  pub fn from_u32(i: u32) -> Result<Id,TryFromIntError> {
+    Ok(Id(NonZeroU32::try_from(!i)?))
   }
 }
 
+// assumes the architecture isn't a microcontroller where usize < u32
 impl From<Id> for usize {
-  fn from(id: Id) -> usize { id.0.get() }
+  #[inline]
+  fn from(id: Id) -> usize { usize::try_from(id.u32()).unwrap() }
+}
+
+impl From<Id> for u32 {
+  #[inline]
+  fn from(id: Id) -> u32 { id.u32() }
+}
+
+impl TryFrom<u32> for Id {
+  type Error = TryFromIntError;
+  #[inline]
+  fn try_from(u: u32) -> Result<Id,TryFromIntError> { Id::from_u32(u) }
+}
+
+impl TryFrom<usize> for Id {
+  type Error = TryFromIntError;
+  #[inline]
+  fn try_from(u: usize) -> Result<Id,TryFromIntError> { Id::from_u32(u32::try_from(u)?) }
 }
 
 impl Default for Id {
   #[inline]
-  fn default() -> Self {
-    Self::from_usize(0).unwrap()
-  }
+  fn default() -> Self { unsafe { Self::new_unchecked(0) } }
 }
 
 impl fmt::Debug for Id {
   fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
     f.write_str("Id(")?;
-    Debug::fmt(&self.0,f)?;
+    Debug::fmt(&self.u32(),f)?;
     f.write_char(')')
   }
 }

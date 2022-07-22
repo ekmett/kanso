@@ -4,3 +4,4 @@ version="0.1.0"
 
 [dependencies]
 tailcall = "0.1.5"
+lasso = "0.3.1"
