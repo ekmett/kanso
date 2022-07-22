@@ -52,31 +52,31 @@ pub fn cons<T>(head: T, tail: List<T>) -> List<T> {
 
 pub const fn nil<T>() -> List<T> { List(None) }
 
-fn drop_tree<T>(k0: u32, ts0: u32, t0: Tree<T>, rest0: Orc<T>) -> Orc<T> {
+fn drop_tree<T>(k0: u32, ts0: u32, t0: &Tree<T>, rest0: &Orc<T>) -> Orc<T> {
   let mut k: u32 = k0;
-  let mut t: Tree<T> = t0;
+  let mut t: &Tree<T> = t0;
   let mut ts: u32 = ts0;
-  let mut rest: Orc<T> = rest0;
+  let mut rest: Orc<T> = rest0.clone();
   loop {
     ts >>= 1;
-    match &*t {
+    match t.as_ref() {
       Node(_,Some::<Tree<T>>(l),Some::<Tree<T>>(r)) => {
         let bnd = 1 + ts;
         match k.cmp(&bnd) {
           Ordering::Less => {
-            rest = cell(ts,r.clone(),rest);
-            let lp = l.clone();
+            rest = cell(ts,r.clone(),rest.clone());
+            // let lp = l.clone();
             if k == 1 {
-              break cell(ts,lp,rest);
+              break cell(ts,l.clone(),rest);
             } else {
-              t = lp;
+              t = &l;
               k -= 1;
               // continue down left branch
             }
           }
           Ordering::Equal => break cell(ts,r.clone(),rest),
           Ordering::Greater => {
-            t = r.clone();
+            t = r;
             k -= ts + 1
             // continue down right branch
           }
@@ -104,7 +104,7 @@ fn drop_spine<T>(x0: Orc<T>, n: u32) -> Orc<T> {
         break c.rest.clone()
       }
       Ordering::Greater => {
-        break drop_tree(k,c.size,c.tree.clone(),c.rest.clone())
+        break drop_tree(k,c.size,&c.tree,&c.rest) // .clone())
       }
     }
   }
