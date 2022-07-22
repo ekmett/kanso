@@ -5,7 +5,7 @@ use std::fmt;
 use std::rc::Rc;
 use std::convert::TryFrom;
 
-// this is encoding less 'correct' than enum { Tip(T), Bin(T,Tree<T>,Tree<T>) } but 
+// this is encoding less 'correct' than enum { Tip(T), Bin(T,Tree<T>,Tree<T>) } but
 // takes advantage of null compression and allows deriving common instances with the right
 // behavior. more correct would be Node<T>(T,Option<(Tree<T>,Tree<T>)), but we'd lose more
 // bits
@@ -17,7 +17,7 @@ type Tree<T> = Rc<Node<T>>;
 type N<T> = Option<Tree<T>>;
 
 #[derive(Debug,PartialEq,Eq)]
-struct Cell<T> { 
+struct Cell<T> {
   size: u32,
   tree: Tree<T>,
   rest: Orc<T>
@@ -42,8 +42,12 @@ fn cell<T>(size: u32, tree: Tree<T>, rest: Orc<T>) -> Orc<T> {
 pub fn cons<T>(head: T, tail: List<T>) -> List<T> {
   List(match tail.0.as_ref() {
     Some(c0) => match c0.rest.as_ref() {
-      Some(c1) if c0.size == c1.size => 
-        cell(c0.size+c1.size+1,bin(head,c0.tree.clone(),c1.tree.clone()),c1.rest.clone()),
+      Some(c1) if c0.size == c1.size =>
+        cell(
+          c0.size+c1.size+1,
+          bin(head,c0.tree.clone(),c1.tree.clone()),
+          c1.rest.clone()
+        ),
       _ => cell(1,tip(head),tail.0)
     },
     _ => cell(1,tip(head),tail.0)
@@ -52,15 +56,36 @@ pub fn cons<T>(head: T, tail: List<T>) -> List<T> {
 
 pub const fn nil<T>() -> List<T> { List(None) }
 
-fn drop_tree<T>(k0: u32, ts0: u32, t0: &Tree<T>, rest0: &Orc<T>) -> Orc<T> {
-  let mut k: u32 = k0;
-  let mut t: &Tree<T> = t0;
-  let mut ts: u32 = ts0;
-  let mut rest: Orc<T> = rest0.clone();
+fn at_tree<T>(mut k: u32, mut ts: u32, mut t: &Tree<T>) -> Option<&T> {
+  // panic!("stahp")
   loop {
     ts >>= 1;
     match t.as_ref() {
-      Node(_,Some::<Tree<T>>(l),Some::<Tree<T>>(r)) => {
+      Node(a,ml,mr) => {
+        if k == 0 { break Some(&a) }
+        k -= 1;
+        if k <= ts {
+          match ml {
+            Some(lt) => { t = lt },
+            None => break None
+          }
+        } else {
+          match mr {
+            Some(rt) => { t = rt; k -= ts; },
+            None => break None
+          }
+        }
+      }
+    }
+  }
+
+}
+
+fn drop_tree<T>(mut k: u32, mut ts: u32, mut t: &Tree<T>, mut rest: Orc<T>) -> Orc<T> {
+  loop {
+    ts >>= 1;
+    match t.as_ref() {
+      Node(_,Some(l),Some(r)) => {
         let bnd = 1 + ts;
         match k.cmp(&bnd) {
           Ordering::Less => {
@@ -77,7 +102,7 @@ fn drop_tree<T>(k0: u32, ts0: u32, t0: &Tree<T>, rest0: &Orc<T>) -> Orc<T> {
           Ordering::Equal => break cell(ts,r.clone(),rest),
           Ordering::Greater => {
             t = r;
-            k -= ts + 1
+            k -= bnd;
             // continue down right branch
           }
         }
@@ -87,25 +112,40 @@ fn drop_tree<T>(k0: u32, ts0: u32, t0: &Tree<T>, rest0: &Orc<T>) -> Orc<T> {
   }
 }
 
-fn drop_spine<T>(x0: Orc<T>, n: u32) -> Orc<T> {
-  let mut x = x0.clone();
-  let mut k = n;
+fn drop_spine<T>(x0: &Orc<T>, n: u32) -> Orc<T> {
   if n == 0 {
-    return x0
+    return x0.clone()
   }
-  loop { 
+  let mut x: &Orc<T> = x0;
+  let mut k = n;
+  loop {
     let c = x.as_ref()?;
     match c.size.cmp(&k) {
       Ordering::Less => {
         k -= c.size;
-        x = c.rest.clone()
+        x = &c.rest;
       },
       Ordering::Equal => {
         break c.rest.clone()
       }
       Ordering::Greater => {
-        break drop_tree(k,c.size,&c.tree,&c.rest) // .clone())
+        break drop_tree(k,c.size,&c.tree,c.rest.clone())
       }
+    }
+  }
+}
+
+
+fn at_spine<T>(x0: &Orc<T>, n: u32) -> Option<&T> {
+  let mut x: &Orc<T> = x0;
+  let mut k = n;
+  loop {
+    let c = x.as_ref()?;
+    if c.size <= k {
+      k -= c.size;
+      x = &c.rest;
+    } else {
+      break at_tree(k,c.size,&c.tree)
     }
   }
 }
@@ -113,7 +153,7 @@ fn drop_spine<T>(x0: Orc<T>, n: u32) -> Orc<T> {
 impl <T> List<T> {
   pub const fn new() -> List<T> { List(None) }
   pub fn uncons(&self) -> Option<(&T, List<T>)> {
-    self.0.as_ref().map(|c| 
+    self.0.as_ref().map(|c|
       match &*c.tree {
         Node(a,Some(l),Some(r)) => {
           let branch_size = c.size >> 1;
@@ -130,12 +170,11 @@ impl <T> List<T> {
     }
   }
 
-  // pub fn drop(&self, n: u32) -> List<T> { List(drop_spine(self.0.clone(),n)) }
-  pub fn drop(&self, n: u32) -> List<T> { List(drop_spine(self.0.clone(),n)) }
+  pub fn drop(&self, n: u32) -> List<T> { List(drop_spine(&self.0,n)) }
 
-  // pub fn at(&self, n: u32) -> &T {
-  //    atSpine(self.0)
-  // }
+  pub fn at(&self, n: u32) -> Option<&T> {
+    at_spine(&self.0,n)
+  }
 
   // TODO: destructive version with fewer constraints
   pub fn reverse(self) -> List<T> where T : Clone {
@@ -153,7 +192,7 @@ impl <T> List<T> {
   }
 }
 
-impl <T : Clone> Iterator for List<T> { 
+impl <T : Clone> Iterator for List<T> {
   type Item = T;
   fn next(&mut self) -> Option<T> {
     let (h,t) = self.uncons()?;
@@ -168,7 +207,7 @@ impl <T : Clone> Iterator for List<T> {
 }
 
 impl <A> fmt::Display for List<A> where
-  A : fmt::Display, 
+  A : fmt::Display,
   A : Clone {
   fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
     let mut delim = "[";
@@ -193,9 +232,9 @@ macro_rules! list {
   }}
 }
 pub use list;
-     
+
 impl<A> Default for List<A> {
-  fn default() -> List<A> { List(None) } 
+  fn default() -> List<A> { List(None) }
 }
 
 pub fn main() {
