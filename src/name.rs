@@ -1,6 +1,7 @@
 use lasso::{Key, Rodeo, RodeoReader, RodeoResolver, Spur};
+use std::hash::Hash;
 
-#[derive(Debug,Copy,Clone,PartialEq,Eq,PartialOrd,Ord)]
+#[derive(Debug,Copy,Clone,PartialEq,Eq,PartialOrd,Ord,Hash)]
 #[repr(transparent)]
 pub struct Name(Spur);
 

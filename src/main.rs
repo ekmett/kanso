@@ -1,10 +1,7 @@
 extern crate tc;
 
-
-
-use tc::term;
-
 pub fn main() {
   println!("main line");
+  tc::list::main();
   tc::term::main()
 }

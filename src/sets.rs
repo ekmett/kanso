@@ -11,15 +11,15 @@ use id::Id;
 // the bottom of the disjoint_sets structure.
 
 #[derive(Debug, Clone, Default)]
-pub struct DisjointSets(Vec<Id>);
+pub struct Sets(Vec<Id>);
 
-impl DisjointSets {
+impl Sets {
   pub fn with_capacity(capacity: u32) -> Self {
-    DisjointSets(Vec::with_capacity(usize::try_from(capacity).unwrap()))
+    Sets(Vec::with_capacity(usize::try_from(capacity).unwrap()))
   }
 
   pub fn new() -> Self {
-    DisjointSets(Vec::new())
+    Sets(Vec::new())
   }
 
 
@@ -118,7 +118,7 @@ mod tests {
 
   #[test]
   fn it_works() {
-    let mut ds = DisjointSets::with_capacity(2);
+    let mut ds = Sets::with_capacity(2);
     assert_eq!(ds.capacity(),2);
     assert_eq!(ds.len(), 0);
     let x = ds.make_set();

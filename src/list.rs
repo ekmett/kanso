@@ -1,15 +1,16 @@
-// extern crate tailcall;
-// use tailcall::tailcall;
+// skew-binary random access lists
+
 use std::cmp::Ordering;
 use std::fmt;
 use std::rc::Rc;
 use std::convert::TryFrom;
 
-#[derive(Debug,PartialEq,Eq,PartialOrd,Ord)] // TODO: hand roll because these are wrong
-// this is less 'correct' than enum { Tip(T), Bin(T,Tree<T>,Tree<T>) } but 
+// this is encoding less 'correct' than enum { Tip(T), Bin(T,Tree<T>,Tree<T>) } but 
 // takes advantage of null compression and allows deriving common instances with the right
-// behavior. more correct would be Node<T>(T,Option<(Tree<T>,Tree<T>))
+// behavior. more correct would be Node<T>(T,Option<(Tree<T>,Tree<T>)), but we'd lose more
+// bits
 
+#[derive(Debug,PartialEq,Eq,PartialOrd,Ord)]
 struct Node<T>(T,N<T>,N<T>);
 
 type Tree<T> = Rc<Node<T>>;
@@ -49,7 +50,7 @@ pub fn cons<T>(head: T, tail: List<T>) -> List<T> {
   })
 }
 
-pub fn nil<T>() -> List<T> { List(None) }
+pub const fn nil<T>() -> List<T> { List(None) }
 
 fn drop_tree<T>(k0: u32, ts0: u32, t0: Tree<T>, rest0: Orc<T>) -> Orc<T> {
   let mut k: u32 = k0;
@@ -110,7 +111,7 @@ fn drop_spine<T>(x0: Orc<T>, n: u32) -> Orc<T> {
 }
 
 impl <T> List<T> {
-  pub fn new() -> List<T> { List(None) }
+  pub const fn new() -> List<T> { List(None) }
   pub fn uncons(&self) -> Option<(&T, List<T>)> {
     self.0.as_ref().map(|c| 
       match &*c.tree {
@@ -129,10 +130,12 @@ impl <T> List<T> {
     }
   }
 
+  // pub fn drop(&self, n: u32) -> List<T> { List(drop_spine(self.0.clone(),n)) }
   pub fn drop(&self, n: u32) -> List<T> { List(drop_spine(self.0.clone(),n)) }
 
-  //pub fn at(&self, n: u32) -> T where T : Clone {
-  //}
+  // pub fn at(&self, n: u32) -> &T {
+  //    atSpine(self.0)
+  // }
 
   // TODO: destructive version with fewer constraints
   pub fn reverse(self) -> List<T> where T : Clone {
@@ -195,7 +198,7 @@ impl<A> Default for List<A> {
   fn default() -> List<A> { List(None) } 
 }
 
-fn main() {
+pub fn main() {
   println!("{:#?}",cons(1,cons(2,nil())));
   println!("{:#?}",list![1,2]);
 }
