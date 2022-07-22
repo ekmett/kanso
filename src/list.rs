@@ -112,12 +112,10 @@ fn drop_tree<T>(mut k: u32, mut ts: u32, mut t: &Tree<T>, mut rest: Orc<T>) -> O
   }
 }
 
-fn drop_spine<T>(x0: &Orc<T>, n: u32) -> Orc<T> {
-  if n == 0 {
-    return x0.clone()
+fn drop_spine<T>(mut x: &Orc<T>, mut k: u32) -> Orc<T> {
+  if k == 0 {
+    return x.clone()
   }
-  let mut x: &Orc<T> = x0;
-  let mut k = n;
   loop {
     let c = x.as_ref()?;
     match c.size.cmp(&k) {
@@ -136,9 +134,7 @@ fn drop_spine<T>(x0: &Orc<T>, n: u32) -> Orc<T> {
 }
 
 
-fn at_spine<T>(x0: &Orc<T>, n: u32) -> Option<&T> {
-  let mut x: &Orc<T> = x0;
-  let mut k = n;
+fn at_spine<T>(mut x: &Orc<T>, mut k: u32) -> Option<&T> {
   loop {
     let c = x.as_ref()?;
     if c.size <= k {
@@ -176,7 +172,6 @@ impl <T> List<T> {
     at_spine(&self.0,n)
   }
 
-  // TODO: destructive version with fewer constraints
   pub fn reverse(self) -> List<T> where T : Clone {
     let mut acc = nil();
     let mut rest = self;
