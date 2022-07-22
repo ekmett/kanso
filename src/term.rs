@@ -58,9 +58,6 @@ pub enum Sp {
 #[derive(Debug,PartialEq,Eq,Clone)]
 #[repr(transparent)]
 pub struct Spine(Option<Rc<Sp>>);
-// impl Borrow<Sp> for Spine { #[inline] fn borrow(&self) -> &Sp { self.0.borrow() } }
-// impl AsRef<Sp> for Spine { #[inline] fn as_ref(&self) -> &Sp { self.0.borrow() } }
-// impl Unpin for Spine {}
 
 pub fn sapp(s: &Spine, v: &Value) -> Spine { Spine(Some(Rc::new(Sp::App(s.clone(),v.clone())))) }
 pub const fn snil() -> Spine { Spine(None) }
@@ -73,19 +70,39 @@ pub fn apply(fun: &Value, arg: Value) -> Value {
   }
 }
 
-pub fn lookup(_e: &Env, _i: Ix) -> Value {
-  panic!("not written")
-}
+pub fn lookup(e: &Env, i: Ix) -> &Value { e.at(i).unwrap() }
 
 pub fn eval(e: &Env, t: &Term) -> Value {
   match t.borrow() {
-    Tm::Var(i) => { lookup(e,*i) }
+    Tm::Var(i) => { lookup(e,*i).clone() }
     Tm::App(f,x) => { 
        let fv = eval(e,f);
        let xv = eval(e,x);
        apply(&fv,xv)
     }
     Tm::Lam(n,b) => { vlam(e,*n,b) }
+  }
+}
+
+pub fn uneval_spine(d: Lvl, r: Term, s: &Spine) -> Term {
+  match s.0.as_ref() {
+    None => r,
+    Some(p) => { 
+      match p.borrow() { 
+        Sp::App(sp,arg) => app(uneval_spine(d,r,sp),uneval(d,arg))
+      }
+    }
+  }
+}
+
+pub fn uneval(d: Lvl, v: &Value) -> Term {
+  match v.borrow() {
+    Val::Lam(e,n,b) => {
+      let ep = cons(vvar(d,&snil()),e.clone());
+      let bv = eval(&ep,&b);
+      lam(*n,uneval(d+1,&bv))
+    },
+    Val::Var(lvl,s) => uneval_spine(d,var(d-lvl+1),s)
   }
 }
 
@@ -97,6 +114,6 @@ pub fn main() {
   let i = eval(empty_env,&lam(x,var(0)));
   let k = eval(empty_env,&lam(x,lam(y,var(1))));
   let ref ki_env = list::list![k,i];
-  let ki = eval(ki_env,&app(var(0),var(1)));
-  println!("{:#?}",ki);
+  let ki = uneval(0,&eval(ki_env,&app(var(0),var(1))));
+  println!("{:?}",ki);
 }

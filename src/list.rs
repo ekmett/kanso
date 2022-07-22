@@ -227,6 +227,7 @@ macro_rules! list {
     l.reverse()
   }}
 }
+pub use list;
 
 impl<A> Default for List<A> {
   fn default() -> List<A> { List(None) }
