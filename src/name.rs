@@ -1,7 +1,8 @@
 use lasso::{Key, Rodeo, RodeoReader, RodeoResolver, Spur};
+use serde::{Serialize, Deserialize};
 use std::hash::Hash;
 
-#[derive(Debug,Copy,Clone,PartialEq,Eq,PartialOrd,Ord,Hash)]
+#[derive(Serialize,Deserialize,Debug,Copy,Clone,PartialEq,Eq,PartialOrd,Ord,Hash)]
 #[repr(transparent)]
 pub struct Name(Spur);
 
@@ -17,4 +18,4 @@ impl Default for Name {
 
 pub type Names = Rodeo<Name>;
 pub type NameReader = RodeoReader<Name>;
-pub type NameResolver = RodeoResolver<Name>;
+pub type NaameResolver = RodeoResolver<Name>;

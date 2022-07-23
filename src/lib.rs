@@ -2,6 +2,7 @@
 
 // extern crate tailcalled;
 extern crate lasso;
+extern crate serde;
 
 pub mod hc;
 pub mod id;

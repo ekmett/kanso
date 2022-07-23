@@ -86,7 +86,7 @@ impl<T: Display + ?Sized> Display for Wc<T> {
 
 impl<T: ?Sized> Hash for Wc<T> {
   #[inline]
-  fn hash<H>(&self, state: &mut H) where H: Hasher {
+  fn hash<H : Hasher>(&self, state: &mut H) {
      self.id().hash(state)
   }
 }
@@ -99,8 +99,7 @@ impl<T: ?Sized> PartialEq for Wc<T> {
 }
 impl<T: ?Sized> Eq for Wc<T> {}
 
-pub struct Constable<T, S = RandomState>(HashMap<T, Wc<T>, S>) where
-  T : Hash + Eq + Clone;
+pub struct Constable<T : Hash + Eq + Clone, S = RandomState>(HashMap<T, Wc<T>, S>);
 
 impl <T: Hash + Eq + Clone> Constable<T, RandomState> {
   #[inline]
@@ -142,7 +141,7 @@ impl<T: Hash + Eq + Clone, S: BuildHasher> Constable<T, S> {
   }
 }
 
-impl<T: Hash + Eq + Clone, S> Display for Constable<T, S> where T: Hash + Display {
+impl<T: Hash + Display + Eq + Clone, S> Display for Constable<T, S> {
   fn fmt(&self, fmt: &mut Formatter) -> fmt::Result {
     write!(fmt, "constable:")?;
     for e in self.0.values() {
@@ -161,7 +160,7 @@ pub trait HashConstable<T: Hash>: Sized {
   fn reserve(self, additional: usize);
 }
 
-impl<'a, T: Hash + Eq + Clone, S: BuildHasher> HashConstable<T> for &'a mut Constable<T, S> {
+impl<'a, T: ?Sized + Hash + Eq + Clone, S: BuildHasher> HashConstable<T> for &'a mut Constable<T, S> {
   fn mk_is_new(self, e: T) -> (Hc<T>, bool) {
     // If the element is known and upgradable return it.
     if let Some(hc) = self.get(&e) {

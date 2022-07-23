@@ -1,9 +1,13 @@
 // skew-binary random access lists
 
 use std::cmp::Ordering;
-use std::fmt;
+use std::fmt::{self, Display, Debug, Formatter};
 use std::rc::Rc;
 use std::convert::TryFrom;
+use std::marker::PhantomData;
+use serde::{Serialize, Deserialize, Serializer};
+use serde::de::{Deserializer, Visitor, SeqAccess };
+use serde::ser::{SerializeSeq};
 
 // this is encoding less 'correct' than enum { Tip(T), Bin(T,Tree<T>,Tree<T>) } but
 // takes advantage of null compression and allows deriving common instances with the right
@@ -187,6 +191,41 @@ impl <T> List<T> {
   }
 }
 
+impl<T: Serialize + Clone> Serialize for List<T> {
+  fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+    let mut seq = serializer.serialize_seq(usize::try_from(self.length()).ok())?;
+    for e in self.clone() {
+      seq.serialize_element(&e)?;
+    }
+    seq.end()
+  }
+}
+
+impl<'de, T : Deserialize<'de> + Clone> Deserialize<'de> for List<T> {
+  fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+
+    struct ListVisitor<A>(PhantomData<fn () -> List<A>>);
+
+    impl <'d, A : Deserialize<'d> + Clone> Visitor<'d> for ListVisitor<A> {
+      type Value = List<A>;
+
+      fn expecting(&self, formatter: &mut Formatter) -> fmt::Result {
+        formatter.write_str("a list")
+      }
+
+      fn visit_seq<B : SeqAccess<'d>>(self, mut seq: B) -> Result<Self::Value, B::Error> {
+        let mut xs = nil();
+        while let Some(x) = seq.next_element()? {
+          xs = cons(x, xs);
+        }
+        Ok(xs.reverse())
+      }
+    }
+
+    deserializer.deserialize_seq(ListVisitor(PhantomData))
+  }
+}
+
 impl <T : Clone> Iterator for List<T> {
   type Item = T;
   fn next(&mut self) -> Option<T> {
@@ -195,15 +234,19 @@ impl <T : Clone> Iterator for List<T> {
     self.0 = t.0;
     result
   }
+  // O(log n) time to compute
   fn size_hint(&self) -> (usize, Option<usize>) {
-    let n = usize::try_from(self.length()).unwrap();
-    (n, Some(n))
+    if let Ok(n) = usize::try_from(self.length()) {
+      (n, Some(n))
+    } else {
+      // usize::try_from(u32) will only fail if usize
+      // is smaller than u32
+      (usize::max_value(),None)
+    }
   }
 }
 
-impl <A> fmt::Display for List<A> where
-  A : fmt::Display,
-  A : Clone {
+impl <A: Display + Clone> Display for List<A> {
   fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
     let mut delim = "[";
     for a in self.clone() {
