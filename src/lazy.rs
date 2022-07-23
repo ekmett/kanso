@@ -73,6 +73,20 @@ impl<'f, T> Closure<'f, T> {
   pub fn map_consume<'g, U, F: (FnOnce (&T) -> U) + 'g>(self, f: F) -> Closure<'g,U> where 'f: 'g, T: 'g, {
     Closure::new(move || f(&self.consume()))
   }
+
+  pub fn promote(&mut self) -> Lazy<'f, T> where T: Clone + 'f {
+    if let Closure::Forced(value) = self {
+      Lazy::from(value.clone())
+    } else {
+      let placeholder = Closure::new(||unreachable!());
+      let old_guts = mem::replace(self, placeholder);
+      let result = Lazy(Rc::new(LazyVal(UnsafeCell::new(old_guts))));
+      let clone = result.clone();
+      let new_guts = Closure::new(move || clone.get().clone());
+      let _ = mem::replace(self, new_guts);
+      result
+    }
+  }
 }
 
 impl <'f,T> From<T> for Closure<'f,T> {
@@ -91,6 +105,7 @@ impl <'f,T> IntoIterator for Closure<'f,T> {
     detail::ClosureIterator(Some(self))
   }
 }
+
 
 
 // this is a scala-style 'lazy val'. with all the upsides
@@ -121,6 +136,9 @@ impl<'f, T> LazyVal<'f, T> {
   }
   pub fn map_consume<'g, U, F: (FnOnce (&T) -> U) + 'g>(self, f: F) -> LazyVal<'g,U> where 'f: 'g, T: 'g, {
     LazyVal::new(move || f(self.get()))
+  }
+  pub fn promote(&self) -> Lazy<'f, T> where T: Clone + 'f {
+    unsafe { &mut *self.0.get() }.promote()
   }
 }
 
@@ -164,14 +182,6 @@ impl <'f,T> IntoIterator for LazyVal<'f,T> {
     self.0.into_inner().into_iter()
   }
 }
-
-/*
-// this eats the LazyVal
-impl<'f,T> FnOnce<()> for LazyVal<'f,T> {
-  type Output = T;
-  extern "rust-call" fn call_once(self, _args: ()) -> T { self.get() }
-}
-*/
 
 // a haskell-style thunk, single threaded
 #[repr(transparent)]
@@ -232,6 +242,11 @@ impl <'f,T: Default> Default for Lazy<'f,T> {
   fn default() -> Self { Lazy::new(|| T::default()) }
 }
 
+impl <'f,T> From<T> for Lazy<'f,T> {
+  #[inline]
+  fn from(that: T) -> Self { Lazy::new_strict(that) }
+}
+
 impl<'f,T:Clone> FnOnce<()> for Lazy<'f,T> {
   type Output = T;
   extern "rust-call" fn call_once(self, _args: ()) -> T { self.consume() }
@@ -245,33 +260,11 @@ impl<'f,T:Clone> Fn<()> for Lazy<'f,T> {
   extern "rust-call" fn call(&self, _args: ()) -> T { self.get().clone() }
 }
 
-impl <'f, T> Borrow<T> for Lazy<'f, T> {
-  fn borrow(&self) -> &T { self.get() }
-}
+/* 
 
-impl <'f, T> AsRef<T> for Lazy<'f, T> {
-  fn as_ref(&self) -> &T { self.get() }
-}
+These definitions are more correct and avoid Clone, but are harder to call and conflict
+with a generic pattern supplied in std for impls of FnOnce of &A, etc. given FnOnce for A.
 
-impl <'f, T> Deref for Lazy<'f, T> {
-  type Target = T;
-  fn deref(&self) -> &T { self.get() }
-}
-
-
-
-impl <'f, T: Clone> IntoIterator for Lazy<'f,T> {
-  type Item = T;
-  type IntoIter = detail::LazyIterator<'f,T>;
-  fn into_iter(self) -> Self::IntoIter {
-    detail::LazyIterator(Some(self))
-  }
-}
-
-
-// can't implement alongside the above, because of the conflict with the builtin definitions for FnOnce<A> for &F
-
-/*
 impl<'a,'f,T:'a> FnOnce<()> for &'a Lazy<'f,T> {
   type Output = &'a T;
   extern "rust-call" fn call_once(self, _args: ()) -> Self::Output { self.get() }
@@ -287,6 +280,30 @@ impl<'a,'f,T> Fn<()> for &'a Lazy<'f,T> {
   }
 }
 */
+
+
+impl <'f, T> Borrow<T> for Lazy<'f, T> {
+  fn borrow(&self) -> &T { self.get() }
+}
+
+impl <'f, T> AsRef<T> for Lazy<'f, T> {
+  fn as_ref(&self) -> &T { self.get() }
+}
+
+impl <'f, T> Deref for Lazy<'f, T> {
+  type Target = T;
+  fn deref(&self) -> &T { self.get() }
+}
+
+impl <'f, T: Clone> IntoIterator for Lazy<'f,T> {
+  type Item = T;
+  type IntoIter = detail::LazyIterator<'f,T>;
+  fn into_iter(self) -> Self::IntoIter {
+    detail::LazyIterator(Some(self))
+  }
+}
+
+// can't implement alongside the above, because of the conflict with the builtin definitions for FnOnce<A> for &F
 
 pub fn main() {
    let mut y = 12;
@@ -307,6 +324,9 @@ pub mod detail {
     Box::new(|| panic!("<infinite loop>"))
   }
 
+  pub fn promoting<'f, T>() -> Box<dyn (FnOnce() -> T) + 'f> {
+    Box::new(|| unreachable!() )
+  }
 
   #[repr(transparent)]
   pub struct ClosureIterator<'f,T>(pub Option<Closure<'f,T>>);
@@ -319,6 +339,12 @@ pub mod detail {
     fn size_hint(&self) -> (usize, Option<usize>) {
       let n = if self.0.is_some() { 1 } else { 0 };
       (n,Some(n))
+    }
+    fn last(self) -> Option<Self::Item> {
+      Some(self.0?.consume())
+    }
+    fn count(self) -> usize {
+      if self.0.is_some() { 1 } else { 0 }
     }
   }
 
@@ -342,6 +368,12 @@ pub mod detail {
     fn size_hint(&self) -> (usize, Option<usize>) {
       let n = if self.0.is_some() { 1 } else { 0 };
       (n,Some(n))
+    }
+    fn last(self) -> Option<Self::Item> {
+      Some(self.0?.consume())
+    }
+    fn count(self) -> usize {
+      if self.0.is_some() { 1 } else { 0 }
     }
   }
 }
