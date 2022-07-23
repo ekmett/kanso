@@ -2,6 +2,7 @@
 #![feature(strict_provenance)]
 #![feature(fn_traits)]
 #![feature(unboxed_closures)]
+#![allow(dead_code)]
 
 // extern crate tailcalled;
 extern crate lasso;

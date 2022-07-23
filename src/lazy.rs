@@ -67,6 +67,9 @@ impl<'f, T> Closure<'f, T> {
       _ => None
     }
   }
+  pub fn map_consume<'g, U, F: (FnOnce (&T) -> U) + 'g>(self, f: F) -> Closure<'g,U> where 'f: 'g, T: 'g, {
+    Closure::new(move || f(&self.consume()))
+  }
 }
 
 impl <'f,T: Default> Default for Closure<'f,T> {
