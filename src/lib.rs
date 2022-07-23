@@ -1,5 +1,7 @@
 // #![feature(weak_into_raw)]
 #![feature(strict_provenance)]
+#![feature(fn_traits)]
+#![feature(unboxed_closures)]
 
 // extern crate tailcalled;
 extern crate lasso;
