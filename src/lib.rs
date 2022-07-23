@@ -3,6 +3,7 @@
 #![feature(fn_traits)]
 #![feature(unboxed_closures)]
 #![allow(dead_code)]
+#![feature(associated_type_defaults)]
 
 // extern crate tailcalled;
 extern crate lasso;
@@ -14,4 +15,5 @@ pub mod meta;
 pub mod skew;
 pub mod name;
 pub mod sets;
+pub mod lens;
 // pub mod term;

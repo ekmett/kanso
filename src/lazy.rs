@@ -303,6 +303,17 @@ impl <'f, T: Clone> IntoIterator for Lazy<'f,T> {
   }
 }
 
+/*
+impl <'f, T : Clone> Future for Lazy<'f,T> {
+  type Output = T;
+  fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
+    let this = self.into_inner()
+    if Some(t) = self.try_get()
+
+  }
+}
+*/
+
 // can't implement alongside the above, because of the conflict with the builtin definitions for FnOnce<A> for &F
 
 pub fn main() {
