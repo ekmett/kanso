@@ -22,7 +22,7 @@ impl <T : ?Sized> Hc<T> {
   #[inline]
   pub fn id(&self) -> usize { Rc::as_ptr(&self.0) as *const () as usize }
   #[inline]
-  pub fn downgrade(&self) -> Wc<T> { Wc(Rc::downgrade(&self.0)) }
+  pub fn downgrade(&self) -> WeakHc<T> { WeakHc(Rc::downgrade(&self.0)) }
   #[inline]
   pub fn strong_count(&self) -> usize { Rc::strong_count(&self.0) }
 }
@@ -63,18 +63,19 @@ impl<T: ?Sized> PartialEq for Hc<T> {
 }
 impl<T: ?Sized> Eq for Hc<T> {}
 
+// weak reference to a hash consed structure
 // null pointer optimization
 #[repr(transparent)]
-pub struct Wc<T : ?Sized>(Weak<T>);
+pub struct WeakHc<T : ?Sized>(Weak<T>);
 
-impl <T : ?Sized> Wc<T> {
+impl <T : ?Sized> WeakHc<T> {
   #[inline]
   pub fn upgrade(&self) -> Option<Hc<T>> { Some(Hc(self.0.upgrade()?)) }
   #[inline]
   pub fn id(&self) -> usize { Weak::as_ptr(&self.0) as *const () as usize }
 }
 
-impl<T: Display + ?Sized> Display for Wc<T> {
+impl<T: Display + ?Sized> Display for WeakHc<T> {
   #[inline]
   fn fmt(&self, fmt: &mut Formatter) -> fmt::Result {
     match self.0.upgrade() {
@@ -84,22 +85,24 @@ impl<T: Display + ?Sized> Display for Wc<T> {
   }
 }
 
-impl<T: ?Sized> Hash for Wc<T> {
+impl<T: ?Sized> Hash for WeakHc<T> {
   #[inline]
   fn hash<H : Hasher>(&self, state: &mut H) {
      self.id().hash(state)
   }
 }
 
-impl<T: ?Sized> PartialEq for Wc<T> {
+impl<T: ?Sized> PartialEq for WeakHc<T> {
   #[inline]
   fn eq(&self, rhs: &Self) -> bool {
     self.0.as_ptr() == rhs.0.as_ptr()
   }
 }
-impl<T: ?Sized> Eq for Wc<T> {}
+impl<T: ?Sized> Eq for WeakHc<T> {}
 
-pub struct Constable<T : Hash + Eq + Clone, S = RandomState>(HashMap<T, Wc<T>, S>);
+pub struct Constable<T : Hash + Eq + Clone, S = RandomState>(
+  HashMap<T, WeakHc<T>, S>
+);
 
 impl <T: Hash + Eq + Clone> Constable<T, RandomState> {
   #[inline]
@@ -126,7 +129,7 @@ impl<T: Hash + Eq + Clone, S: BuildHasher> Constable<T, S> {
   ///
   /// This is checked in `debug` but not `release`.
   #[inline]
-  fn insert(&mut self, key: T, wc: Wc<T>) {
+  fn insert(&mut self, key: T, wc: WeakHc<T>) {
     let prev = self.0.insert(key, wc);
     debug_assert!(match prev {
       None => true,
