@@ -2,6 +2,7 @@
 
 use std::rc::Rc;
 use std::borrow::Borrow;
+use std::ops::Deref;
 use list::{self, *};
 use name::*;
 
@@ -21,6 +22,10 @@ pub struct Term(Rc<Tm>);
 
 impl Borrow<Tm> for Term { #[inline] fn borrow(&self) -> &Tm { self.0.borrow() } }
 impl AsRef<Tm> for Term { #[inline] fn as_ref(&self) -> &Tm { self.0.borrow() } }
+impl Deref for Term {
+  type Target = Tm;
+  #[inline] fn deref(&self) -> &Tm { self.0.deref() }
+}
 impl Unpin for Term {}
 
 #[inline]
@@ -45,6 +50,10 @@ pub struct Value(Rc<Val>);
 
 impl Borrow<Val> for Value { #[inline] fn borrow(&self) -> &Val { self.0.borrow() } }
 impl AsRef<Val> for Value { #[inline] fn as_ref(&self) -> &Val { self.0.borrow() } }
+impl Deref for Value {
+  type Target = Val;
+  #[inline] fn deref(&self) -> &Val { self.0.deref() }
+}
 impl Unpin for Value {}
 
 #[inline]
