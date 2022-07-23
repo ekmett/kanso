@@ -1,7 +1,7 @@
-extern crate tc;
+extern crate kanso;
 
 pub fn main() {
   println!("main line");
-  tc::list::main();
-  tc::term::main()
+  kanso::skew::main();
+//  tc::term::main()
 }

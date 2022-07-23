@@ -30,7 +30,7 @@ struct Cell<T> {
 type Orc<T> = Option<Rc<Cell<T>>>;
 
 #[derive(Clone,Debug,PartialEq,Eq)]
-pub struct List<T>(Orc<T>);
+pub struct Skew<T>(Orc<T>);
 
 #[inline]
 fn tip<T>(a: T) -> Tree<T> { Rc::new(Node(a,None,None)) }
@@ -43,8 +43,8 @@ fn cell<T>(size: u32, tree: Tree<T>, rest: Orc<T>) -> Orc<T> {
   Some(Rc::new(Cell { size, tree, rest }))
 }
 
-pub fn cons<T>(head: T, tail: List<T>) -> List<T> {
-  List(match tail.0.as_ref() {
+pub fn cons<T>(head: T, tail: Skew<T>) -> Skew<T> {
+  Skew(match tail.0.as_ref() {
     Some(c0) => match c0.rest.as_ref() {
       Some(c1) if c0.size == c1.size =>
         cell(
@@ -58,7 +58,7 @@ pub fn cons<T>(head: T, tail: List<T>) -> List<T> {
   })
 }
 
-pub const fn nil<T>() -> List<T> { List(None) }
+pub const fn nil<T>() -> Skew<T> { Skew(None) }
 
 fn at_tree<T>(mut k: u32, mut ts: u32, mut t: &Tree<T>) -> Option<&T> {
   // panic!("stahp")
@@ -150,33 +150,33 @@ fn at_spine<T>(mut x: &Orc<T>, mut k: u32) -> Option<&T> {
   }
 }
 
-impl <T> List<T> {
-  pub const fn new() -> List<T> { List(None) }
-  pub fn uncons(&self) -> Option<(&T, List<T>)> {
+impl <T> Skew<T> {
+  pub const fn new() -> Skew<T> { Skew(None) }
+  pub fn uncons(&self) -> Option<(&T, Skew<T>)> {
     self.0.as_ref().map(|c|
       match &*c.tree {
         Node(a,Some(l),Some(r)) => {
           let branch_size = c.size >> 1;
-          (a,List(cell(branch_size,l.clone(),cell(branch_size,r.clone(),c.rest.clone()))))
+          (a,Skew(cell(branch_size,l.clone(),cell(branch_size,r.clone(),c.rest.clone()))))
         }
-        Node(a,_,_) => (a, List(c.rest.clone())),
+        Node(a,_,_) => (a, Skew(c.rest.clone())),
       }
     )
   }
   pub fn length(&self) -> u32 {
     match self.0.as_ref() {
       None => 0,
-      Some(c) => c.size + List(c.rest.clone()).length()
+      Some(c) => c.size + Skew(c.rest.clone()).length()
     }
   }
 
-  pub fn drop(&self, n: u32) -> List<T> { List(drop_spine(&self.0,n)) }
+  pub fn drop(&self, n: u32) -> Skew<T> { Skew(drop_spine(&self.0,n)) }
 
   pub fn at(&self, n: u32) -> Option<&T> {
     at_spine(&self.0,n)
   }
 
-  pub fn reverse(self) -> List<T> where T : Clone {
+  pub fn reverse(self) -> Skew<T> where T : Clone {
     let mut acc = nil();
     let mut rest = self;
     loop {
@@ -191,7 +191,7 @@ impl <T> List<T> {
   }
 }
 
-impl<T: Serialize + Clone> Serialize for List<T> {
+impl<T: Serialize + Clone> Serialize for Skew<T> {
   fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
     let mut seq = serializer.serialize_seq(usize::try_from(self.length()).ok())?;
     for e in self.clone() {
@@ -201,13 +201,13 @@ impl<T: Serialize + Clone> Serialize for List<T> {
   }
 }
 
-impl<'de, T : Deserialize<'de> + Clone> Deserialize<'de> for List<T> {
+impl<'de, T : Deserialize<'de> + Clone> Deserialize<'de> for Skew<T> {
   fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
 
-    struct ListVisitor<A>(PhantomData<fn () -> List<A>>);
+    struct SkewVisitor<A>(PhantomData<fn () -> Skew<A>>);
 
-    impl <'d, A : Deserialize<'d> + Clone> Visitor<'d> for ListVisitor<A> {
-      type Value = List<A>;
+    impl <'d, A : Deserialize<'d> + Clone> Visitor<'d> for SkewVisitor<A> {
+      type Value = Skew<A>;
 
       fn expecting(&self, formatter: &mut Formatter) -> fmt::Result {
         formatter.write_str("a list")
@@ -222,11 +222,11 @@ impl<'de, T : Deserialize<'de> + Clone> Deserialize<'de> for List<T> {
       }
     }
 
-    deserializer.deserialize_seq(ListVisitor(PhantomData))
+    deserializer.deserialize_seq(SkewVisitor(PhantomData))
   }
 }
 
-impl <T : Clone> Iterator for List<T> {
+impl <T : Clone> Iterator for Skew<T> {
   type Item = T;
   fn next(&mut self) -> Option<T> {
     let (h,t) = self.uncons()?;
@@ -246,7 +246,7 @@ impl <T : Clone> Iterator for List<T> {
   }
 }
 
-impl <A: Display + Clone> Display for List<A> {
+impl <A: Display + Clone> Display for Skew<A> {
   fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
     let mut delim = "[";
     for a in self.clone() {
@@ -259,26 +259,26 @@ impl <A: Display + Clone> Display for List<A> {
 
 
 #[macro_export]
-macro_rules! list {
-  [] => { $crate::list::nil() };
+macro_rules! skew {
+  [] => { $crate::skew::nil() };
   [ $($x:expr),* ] => {{
-    let mut l = $crate::list::nil();
+    let mut l = $crate::skew::nil();
     $(
-       l = $crate::list::cons($x,l);
+       l = $crate::skew::cons($x,l);
     )*
     // TODO reverse parameter order with macro tricks, then just construct directly
     l.reverse()
   }}
 }
-pub use list;
+pub use skew;
 
-impl<A> Default for List<A> {
-  fn default() -> List<A> { List(None) }
+impl<A> Default for Skew<A> {
+  fn default() -> Skew<A> { Skew(None) }
 }
 
 pub fn main() {
   println!("{:#?}",cons(1,cons(2,nil())));
-  println!("{:#?}",list![1,2]);
+  println!("{:#?}",skew![1,2]);
 }
 
 #[cfg(test)]
@@ -288,12 +288,12 @@ mod tests {
 
   #[test]
   fn it_works() {
-    let u32_nil : List<u32> = nil();
-    assert_eq!(u32_nil,list![]);
-    assert_eq!(cons(1,nil()),list![1]);
-    assert_eq!(cons(1,cons(2,nil())),list![1,2]);
-    assert_ne!(cons(1,cons(2,nil())),list![1]);
-    assert_eq!(list![4,5,6],list![1,2,3,4,5,6].drop(3))
+    let u32_nil : Skew<u32> = nil();
+    assert_eq!(u32_nil,skew![]);
+    assert_eq!(cons(1,nil()),skew![1]);
+    assert_eq!(cons(1,cons(2,nil())),skew![1,2]);
+    assert_ne!(cons(1,cons(2,nil())),skew![1]);
+    assert_eq!(skew![4,5,6],skew![1,2,3,4,5,6].drop(3))
   }
 }
 

@@ -25,6 +25,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "kanso"
+version = "0.1.0"
+dependencies = [
+ "lasso",
+ "serde",
+ "tailcall",
+]
+
+[[package]]
 name = "lasso"
 version = "0.3.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -101,15 +110,6 @@ dependencies = [
  "proc-macro2",
  "quote",
  "syn",
-]
-
-[[package]]
-name = "tc"
-version = "0.1.0"
-dependencies = [
- "lasso",
- "serde",
- "tailcall",
 ]
 
 [[package]]

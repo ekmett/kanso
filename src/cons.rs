@@ -16,66 +16,66 @@ use std::fmt::{self, Debug, Display, Formatter};
 #[repr(transparent)]
 pub struct Hc<T : ?Sized>(Rc<T>);
 
-impl <T : ?Sized> Hc<T> {
+impl <T> Hc<T> {
   #[inline]
   pub fn get(&self) -> &T { self.0.borrow() }
   #[inline]
-  pub fn id(&self) -> usize { Rc::as_ptr(&self.0) as *const () as usize }
+  pub fn id(&self) -> usize { Rc::as_ptr(&self.0).addr() } //  as *const () as usize }
   #[inline]
   pub fn downgrade(&self) -> WeakHc<T> { WeakHc(Rc::downgrade(&self.0)) }
   #[inline]
   pub fn strong_count(&self) -> usize { Rc::strong_count(&self.0) }
 }
 
-impl <T: ?Sized> Borrow<T> for Hc<T> { 
+impl <T> Borrow<T> for Hc<T> { 
   #[inline] 
   fn borrow(&self) -> &T { self.0.borrow() } 
 }
 
-impl <T: ?Sized> AsRef<T> for Hc<T> { 
+impl <T> AsRef<T> for Hc<T> { 
   #[inline]
   fn as_ref(&self) -> &T { self.0.borrow() } 
 }
 
-impl <T: ?Sized> Deref for Hc<T> {
+impl <T> Deref for Hc<T> {
   type Target = T;
   #[inline]
   fn deref(&self) -> &T { self.0.deref() }
 }
 
-impl <T: Display + ?Sized> Display for Hc<T> {
+impl <T: Display> Display for Hc<T> {
   #[inline]
   fn fmt(&self, fmt: &mut Formatter) -> fmt::Result { self.0.fmt(fmt) }
 }
 
-impl<T: Debug + ?Sized> Debug for Hc<T> {
+impl<T: Debug> Debug for Hc<T> {
   fn fmt(&self, fmt: &mut Formatter) -> fmt::Result { write!(fmt, "{:?}", self.0) }
 }
 
-impl<T: ?Sized> Clone for Hc<T> {
+impl<T> Clone for Hc<T> {
   #[inline] 
   fn clone(&self) -> Self { Hc(self.0.clone()) }
 }
 
-impl<T: ?Sized> PartialEq for Hc<T> {
+impl<T> PartialEq for Hc<T> {
   #[inline] 
   fn eq(&self, rhs: &Self) -> bool { Rc::ptr_eq(&self.0,&rhs.0) }
 }
-impl<T: ?Sized> Eq for Hc<T> {}
+impl<T> Eq for Hc<T> {}
 
 // weak reference to a hash consed structure
 // null pointer optimization
 #[repr(transparent)]
 pub struct WeakHc<T : ?Sized>(Weak<T>);
 
-impl <T : ?Sized> WeakHc<T> {
+impl <T> WeakHc<T> {
   #[inline]
   pub fn upgrade(&self) -> Option<Hc<T>> { Some(Hc(self.0.upgrade()?)) }
   #[inline]
   pub fn id(&self) -> usize { Weak::as_ptr(&self.0) as *const () as usize }
 }
 
-impl<T: Display + ?Sized> Display for WeakHc<T> {
+impl<T: Display> Display for WeakHc<T> {
   #[inline]
   fn fmt(&self, fmt: &mut Formatter) -> fmt::Result {
     match self.0.upgrade() {
@@ -85,20 +85,20 @@ impl<T: Display + ?Sized> Display for WeakHc<T> {
   }
 }
 
-impl<T: ?Sized> Hash for WeakHc<T> {
+impl<T> Hash for WeakHc<T> {
   #[inline]
   fn hash<H : Hasher>(&self, state: &mut H) {
      self.id().hash(state)
   }
 }
 
-impl<T: ?Sized> PartialEq for WeakHc<T> {
+impl<T> PartialEq for WeakHc<T> {
   #[inline]
   fn eq(&self, rhs: &Self) -> bool {
     self.0.as_ptr() == rhs.0.as_ptr()
   }
 }
-impl<T: ?Sized> Eq for WeakHc<T> {}
+impl<T> Eq for WeakHc<T> {}
 
 pub struct Constable<T : Hash + Eq + Clone, S = RandomState>(
   HashMap<T, WeakHc<T>, S>
@@ -163,7 +163,7 @@ pub trait HashConstable<T: Hash>: Sized {
   fn reserve(self, additional: usize);
 }
 
-impl<'a, T: ?Sized + Hash + Eq + Clone, S: BuildHasher> HashConstable<T> for &'a mut Constable<T, S> {
+impl<'a, T: Hash + Eq + Clone, S: BuildHasher> HashConstable<T> for &'a mut Constable<T, S> {
   fn mk_is_new(self, e: T) -> (Hc<T>, bool) {
     // If the element is known and upgradable return it.
     if let Some(hc) = self.get(&e) {

@@ -3,8 +3,11 @@
 use std::rc::Rc;
 use std::borrow::Borrow;
 use std::ops::Deref;
-use list::{self, *};
+use skew::{self, *};
 use name::*;
+
+#[derive(Debug,PartialEq,Eq,Clone,PartialOrd,Ord,Copy,Hash)]
+pub enum Icit { Impl, Expl }
 
 pub type Ix = u32;
 pub type Lvl = u32;
@@ -12,13 +15,18 @@ pub type Lvl = u32;
 #[derive(Debug,PartialEq,Eq,Clone)]
 pub enum Tm {
   Var(Ix),
-  App(Term,Term),
-  Lam(Name,Term)
+  App(Term,Icit,Term),
+  Lam(Name,Icit,Term),
+  // AppPruning(Tm,Pruning),
+  U,
+  Pi(Name,Icit,Type,Type),
+  Let(Name,Type,Term,Term)
 }
 
 #[derive(Debug,PartialEq,Eq,Clone)]
 #[repr(transparent)]
 pub struct Term(Rc<Tm>);
+type Type = Term;
 
 impl Borrow<Tm> for Term { #[inline] fn borrow(&self) -> &Tm { self.0.borrow() } }
 impl AsRef<Tm> for Term { #[inline] fn as_ref(&self) -> &Tm { self.0.borrow() } }
@@ -29,18 +37,18 @@ impl Deref for Term {
 impl Unpin for Term {}
 
 #[inline]
-pub fn lam(n: Name, b: Term) -> Term { Term(Rc::new(Tm::Lam(n,b))) }
+pub fn lam(n: Name, i: Icit, b: Term) -> Term { Term(Rc::new(Tm::Lam(n,i,b))) }
 #[inline]
-pub fn app(f: Term, a: Term) -> Term { Term(Rc::new(Tm::App(f,a))) }
+pub fn app(f: Term, i: Icit, a: Term) -> Term { Term(Rc::new(Tm::App(f,i,a))) }
 #[inline]
 pub fn var(i: Ix) -> Term { Term(Rc::new(Tm::Var(i))) }
 
-pub type Env = List<Value>;
+pub type Env = Skew<Value>;
 pub fn lookup(e: &Env, i: Ix) -> &Value { e.at(i).unwrap() }
 
 #[derive(Debug,PartialEq,Eq,Clone)]
 pub enum Val {
-  Lam(Env,Name,Term),
+  Lam(Env,Name,Icit,Term),
   Var(Lvl,Spine)
 }
 
@@ -85,11 +93,11 @@ pub fn apply(fun: &Value, arg: Value) -> Value {
 pub fn eval(e: &Env, t: &Term) -> Value {
   match t.borrow() {
     Tm::Var(i) => { lookup(e,*i).clone() }
-    Tm::App(f,x) => { 
+    Tm::App(f,_,x) => { 
        let fv = eval(e,f);
        apply(&fv,eval(e,x))
     }
-    Tm::Lam(n,b) => { vlam(e,*n,b) }
+    Tm::Lam(n,_,b) => { vlam(e,*n,i,b) }
   }
 }
 
@@ -122,7 +130,7 @@ pub fn main() {
   let ref empty_env = nil();
   let i = eval(empty_env,&lam(x,var(0)));
   let k = eval(empty_env,&lam(x,lam(y,var(1))));
-  let ref ki_env = list::list![k,i];
+  let ref ki_env = skew::skew![k,i];
   let ki = uneval(0,&eval(ki_env,&app(var(0),var(1))));
   println!("{:?}",ki);
 }
