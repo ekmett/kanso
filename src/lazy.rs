@@ -1,45 +1,44 @@
 use std::cell::UnsafeCell;
-use std::ops::FnOnce;
+use std::ops::{Deref, FnOnce, FnMut, Fn};
 use std::boxed::Box;
 use std::rc::Rc;
 use std::mem;
+use std::borrow::Borrow;
 
 // almost has the semantics of a scala lazy val
 // but requires mutation
-enum Closure<'f, T> {
+pub enum Closure<'f, T> {
   Delayed(Box<dyn (FnOnce() -> T) + 'f>),
   Forced(T),
 }
 
-fn blackhole<'f, T>() -> Box<dyn (FnOnce() -> T) + 'f> {
-  Box::new(|| panic!("<infinite loop>"))
-}
-
 impl<'f, T> Closure<'f, T> {
-  fn new<F: FnOnce() -> T + 'f>(f: F) -> Self {
+
+  #[inline]
+  pub fn new<F: FnOnce() -> T + 'f>(f: F) -> Self {
     Closure::Delayed(Box::new(f))
   }
-  fn new_strict(value: T) -> Self {
-    Closure::Forced(value)
-  }
 
-  fn ready(&self) -> bool {
+  #[inline]
+  pub const fn ready(&self) -> bool {
     match self {
     Closure::Forced(_) => true,
     _ => false
     }
   }
 
-  fn seq(&mut self) {
+  #[inline]
+  pub fn seq(&mut self) {
     let mut mf = None;
     if let Closure::Delayed(ref mut fr) = self {
-      mf = Some(mem::replace(fr, blackhole()))
+      mf = Some(mem::replace(fr, detail::blackhole()))
     }
     if let Some(f) = mf {
       *self = Closure::Forced(f())
     }
   }
-  fn get(&mut self) -> &T {
+  #[inline]
+  pub fn get(&mut self) -> &T {
     self.seq();
     if let Closure::Forced(ref t) = self {
       &t
@@ -47,13 +46,15 @@ impl<'f, T> Closure<'f, T> {
       unreachable!()
     }
   }
-  fn try_get(&self) -> Option<&T> {
+  #[inline]
+  pub const fn try_get(&self) -> Option<&T> {
     if let Closure::Forced(ref t) = self {
       Some(&t)
     } else {
       None
     }
   }
+  #[inline]
   pub fn consume(self) -> T {
     match self {
       Closure::Delayed(f) => f(),
@@ -61,53 +62,44 @@ impl<'f, T> Closure<'f, T> {
     }
   }
 
+  #[inline]
   pub fn try_consume(self) -> Option<T> {
     match self {
       Closure::Forced(t) => Some(t),
       _ => None
     }
   }
+  #[inline]
   pub fn map_consume<'g, U, F: (FnOnce (&T) -> U) + 'g>(self, f: F) -> Closure<'g,U> where 'f: 'g, T: 'g, {
     Closure::new(move || f(&self.consume()))
   }
+}
+
+impl <'f,T> From<T> for Closure<'f,T> {
+  #[inline]
+  fn from(that: T) -> Self { Closure::Forced(that) }
 }
 
 impl <'f,T: Default> Default for Closure<'f,T> {
   fn default() -> Self { Closure::new(|| T::default()) }
 }
 
-
-pub struct ClosureIterator<'f,T>(Option<Closure<'f,T>>);
-
 impl <'f,T> IntoIterator for Closure<'f,T> {
   type Item = T;
-  type IntoIter = ClosureIterator<'f,T>;
+  type IntoIter = detail::ClosureIterator<'f,T>;
   fn into_iter(self) -> Self::IntoIter {
-    ClosureIterator(Some(self))
+    detail::ClosureIterator(Some(self))
   }
 }
 
-impl <'f,T> Iterator for ClosureIterator<'f,T> {
-  type Item = T;
-  fn next(&mut self) -> Option<Self::Item> {
-    Some(self.0.take()?.consume())
-  }
-  fn size_hint(&self) -> (usize, Option<usize>) {
-    let n = if self.0.is_some() { 1 } else { 0 };
-    (n,Some(n))
-  }
-}
 
 // this is a scala-style 'lazy val'. with all the upsides
 // and downsides that would entail
-struct LazyVal<'f, T>(UnsafeCell<Closure<'f, T>>);
+pub struct LazyVal<'f, T>(UnsafeCell<Closure<'f, T>>);
 
 impl<'f, T> LazyVal<'f, T> {
   pub fn new<F: (FnOnce() -> T) + 'f>(f: F) -> Self {
     LazyVal(UnsafeCell::new(Closure::new(f)))
-  }
-  pub fn new_strict(value: T) -> Self {
-    LazyVal(UnsafeCell::new(Closure::new_strict(value)))
   }
   pub fn seq(&self) {
     unsafe { &mut *self.0.get() }.seq()
@@ -136,9 +128,38 @@ impl <'f,T: Default> Default for LazyVal<'f,T> {
   fn default() -> Self { LazyVal::new(|| T::default()) }
 }
 
+impl <'f,T> From<Closure<'f,T>> for LazyVal<'f,T> {
+  fn from(that: Closure<'f,T>) -> Self {
+    LazyVal(UnsafeCell::new(that))
+  }
+}
+
+impl <'f,T> From<T> for LazyVal<'f,T> {
+  fn from(that: T) -> Self {
+    LazyVal::from(Closure::from(that))
+  }
+}
+
+impl <'f,T> From<LazyVal<'f,T>> for Closure<'f,T> {
+  fn from(that: LazyVal<'f,T>) -> Self { that.0.into_inner() }
+}
+
+impl <'f, T> Borrow<T> for LazyVal<'f, T> {
+  fn borrow(&self) -> &T { self.get() }
+}
+
+impl <'f, T> AsRef<T> for LazyVal<'f, T> {
+  fn as_ref(&self) -> &T { self.get() }
+}
+
+impl <'f, T> Deref for LazyVal<'f, T> {
+  type Target = T;
+  fn deref(&self) -> &T { self.get() }
+}
+
 impl <'f,T> IntoIterator for LazyVal<'f,T> {
   type Item = T;
-  type IntoIter = ClosureIterator<'f,T>;
+  type IntoIter = detail::ClosureIterator<'f,T>;
   fn into_iter(self) -> Self::IntoIter {
     self.0.into_inner().into_iter()
   }
@@ -154,7 +175,7 @@ impl<'f,T> FnOnce<()> for LazyVal<'f,T> {
 
 // a haskell-style thunk, single threaded
 #[repr(transparent)]
-pub struct Lazy<'f, T>(Rc<LazyVal<'f, T>>);
+pub struct Lazy<'f, T>(pub Rc<LazyVal<'f, T>>);
 
 impl <'f,T> Clone for Lazy<'f,T> {
   fn clone(&self) -> Self {
@@ -171,7 +192,7 @@ impl<'f,T> Lazy<'f, T> {
     Lazy(Rc::new(LazyVal::new(f)))
   }
   pub fn new_strict(value: T) -> Self {
-    Lazy(Rc::new(LazyVal::new_strict(value)))
+    Lazy(Rc::new(LazyVal::from(value)))
   }
   pub fn seq(&self) { self.0.as_ref().seq() }
   pub fn ready(&self) -> bool { self.0.as_ref().ready() }
@@ -224,35 +245,26 @@ impl<'f,T:Clone> Fn<()> for Lazy<'f,T> {
   extern "rust-call" fn call(&self, _args: ()) -> T { self.get().clone() }
 }
 
-#[repr(transparent)]
-pub struct LazyIterator<'f, T>(Option<Lazy<'f,T>>);
-
-impl <'f, T> Clone for LazyIterator<'f, T> {
-  #[inline]
-  fn clone(&self) -> Self { LazyIterator(self.0.clone()) }
-
-  #[inline]
-  fn clone_from(&mut self, source: &Self) { self.0.clone_from(&source.0) }
+impl <'f, T> Borrow<T> for Lazy<'f, T> {
+  fn borrow(&self) -> &T { self.get() }
 }
 
-impl <'f, T: Clone> Iterator for LazyIterator<'f,T> {
-  type Item = T;
-  #[inline]
-  fn next(&mut self) -> Option<Self::Item> {
-    Some(self.0.take()?.consume())
-  }
-  #[inline]
-  fn size_hint(&self) -> (usize, Option<usize>) {
-    let n = if self.0.is_some() { 1 } else { 0 };
-    (n,Some(n))
-  }
+impl <'f, T> AsRef<T> for Lazy<'f, T> {
+  fn as_ref(&self) -> &T { self.get() }
 }
+
+impl <'f, T> Deref for Lazy<'f, T> {
+  type Target = T;
+  fn deref(&self) -> &T { self.get() }
+}
+
+
 
 impl <'f, T: Clone> IntoIterator for Lazy<'f,T> {
   type Item = T;
-  type IntoIter = LazyIterator<'f,T>;
+  type IntoIter = detail::LazyIterator<'f,T>;
   fn into_iter(self) -> Self::IntoIter {
-    LazyIterator(Some(self))
+    detail::LazyIterator(Some(self))
   }
 }
 
@@ -288,3 +300,48 @@ pub fn main() {
    }
 }
 
+pub mod detail {
+  use super::*;
+
+  pub fn blackhole<'f, T>() -> Box<dyn (FnOnce() -> T) + 'f> {
+    Box::new(|| panic!("<infinite loop>"))
+  }
+
+
+  #[repr(transparent)]
+  pub struct ClosureIterator<'f,T>(pub Option<Closure<'f,T>>);
+
+  impl <'f,T> Iterator for ClosureIterator<'f,T> {
+    type Item = T;
+    fn next(&mut self) -> Option<Self::Item> {
+      Some(self.0.take()?.consume())
+    }
+    fn size_hint(&self) -> (usize, Option<usize>) {
+      let n = if self.0.is_some() { 1 } else { 0 };
+      (n,Some(n))
+    }
+  }
+
+  #[repr(transparent)]
+  pub struct LazyIterator<'f, T>(pub Option<Lazy<'f,T>>);
+
+  impl <'f, T> Clone for LazyIterator<'f, T> {
+    #[inline]
+    fn clone(&self) -> Self { LazyIterator(self.0.clone()) }
+
+    #[inline]
+    fn clone_from(&mut self, source: &Self) { self.0.clone_from(&source.0) }
+  }
+  impl <'f, T: Clone> Iterator for LazyIterator<'f,T> {
+    type Item = T;
+    #[inline]
+    fn next(&mut self) -> Option<Self::Item> {
+      Some(self.0.take()?.consume())
+    }
+    #[inline]
+    fn size_hint(&self) -> (usize, Option<usize>) {
+      let n = if self.0.is_some() { 1 } else { 0 };
+      (n,Some(n))
+    }
+  }
+}
