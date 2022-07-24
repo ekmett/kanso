@@ -1,0 +1,15 @@
+{
+  "name": "tree-sitter-kanso",
+  "version": "0.1.0",
+  "description": "a tree sitter grammar for a toy language",
+  "main": "bindings/node",
+  "repository": null,
+  "author": "Edward Kmett",
+  "license": "MIT",
+  "devDependencies": {
+    "tree-sitter-cli": "^0.13.5"
+  },
+  "scripts": {
+    "build": "tree-sitter generate && node-gyp build"
+  }
+}
