@@ -2,7 +2,11 @@
 #![feature(fn_traits)]
 #![feature(unboxed_closures)]
 #![feature(associated_type_defaults)]
+
+// === Linter configuration
 #![allow(dead_code)]
+#![warn(missing_copy_implementations)]
+#![warn(missing_debug_implementations)]
 
 // extern crate tailcalled;
 extern crate cfg_if;

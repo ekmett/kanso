@@ -27,14 +27,14 @@ impl <T> Hc<T> {
   pub fn strong_count(&self) -> usize { Rc::strong_count(&self.0) }
 }
 
-impl <T> Borrow<T> for Hc<T> { 
-  #[inline] 
-  fn borrow(&self) -> &T { self.0.borrow() } 
+impl <T> Borrow<T> for Hc<T> {
+  #[inline]
+  fn borrow(&self) -> &T { self.0.borrow() }
 }
 
-impl <T> AsRef<T> for Hc<T> { 
+impl <T> AsRef<T> for Hc<T> {
   #[inline]
-  fn as_ref(&self) -> &T { self.0.borrow() } 
+  fn as_ref(&self) -> &T { self.0.borrow() }
 }
 
 impl <T> Deref for Hc<T> {
@@ -53,12 +53,12 @@ impl<T: Debug> Debug for Hc<T> {
 }
 
 impl<T> Clone for Hc<T> {
-  #[inline] 
+  #[inline]
   fn clone(&self) -> Self { Hc(self.0.clone()) }
 }
 
 impl<T> PartialEq for Hc<T> {
-  #[inline] 
+  #[inline]
   fn eq(&self, rhs: &Self) -> bool { Rc::ptr_eq(&self.0,&rhs.0) }
 }
 impl<T> Eq for Hc<T> {}
@@ -75,12 +75,21 @@ impl <T> WeakHc<T> {
   pub fn id(&self) -> usize { Weak::as_ptr(&self.0) as *const () as usize }
 }
 
+impl<T: Debug> Debug for WeakHc<T> {
+  fn fmt(&self, fmt: &mut Formatter) -> fmt::Result {
+    match self.0.upgrade() {
+      Some(r) => r.fmt(fmt),
+      None => write!(fmt,"<removed>")
+    }
+  }
+}
+
 impl<T: Display> Display for WeakHc<T> {
   #[inline]
   fn fmt(&self, fmt: &mut Formatter) -> fmt::Result {
     match self.0.upgrade() {
       Some(r) => r.fmt(fmt),
-      None => write!(fmt,"<>")
+      None => write!(fmt,"<removed>")
     }
   }
 }
@@ -149,6 +158,16 @@ impl<T: Hash + Display + Eq + Clone, S> Display for Constable<T, S> {
     write!(fmt, "constable:")?;
     for e in self.0.values() {
       write!(fmt, "\n  | {}", e)?;
+    }
+    Ok(())
+  }
+}
+
+impl<T: Hash + Debug + Eq + Clone, S> Debug for Constable<T, S> {
+  fn fmt(&self, fmt: &mut Formatter) -> fmt::Result {
+    write!(fmt, "constable:")?;
+    for e in self.0.values() {
+      write!(fmt, "\n  | {:?}", e)?;
     }
     Ok(())
   }

@@ -1,5 +1,5 @@
 use std::num::{NonZeroU32, TryFromIntError };
-use std::fmt::{self, Debug, Write};
+use std::fmt::{self, Debug};
 use std::convert::TryFrom;
 
 // this makes names able to be stored in Option<Meta> in the same size by adding a niche
@@ -58,8 +58,6 @@ impl Default for Meta {
 
 impl fmt::Debug for Meta {
   fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-    f.write_str("Meta(")?;
-    Debug::fmt(&self.u32(),f)?;
-    f.write_char(')')
+    Debug::fmt(&self.u32(),f)
   }
 }

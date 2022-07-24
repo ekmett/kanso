@@ -2,6 +2,7 @@ use std::cell::UnsafeCell;
 use std::ops::{Deref, FnOnce, FnMut, Fn};
 use std::boxed::Box;
 use std::rc::Rc;
+use std::fmt::{self,Debug,Formatter};
 use std::mem;
 use std::borrow::Borrow;
 
@@ -10,6 +11,15 @@ use std::borrow::Borrow;
 pub enum Closure<'f,T> {
   Delayed(Box<dyn (FnOnce() -> T) + 'f>),
   Forced(T),
+}
+
+impl <'f,T:Debug> Debug for Closure<'f,T> {
+  fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+    match self {
+      Closure::Delayed(_) => f.write_str("<closure>"),
+      Closure::Forced(t)  => Debug::fmt(&t,f)
+    }
+  }
 }
 
 impl<'f, T: 'f> Closure<'f, T> {
@@ -117,6 +127,7 @@ impl <'f,T:'f> IntoIterator for Closure<'f,T> {
 
 // this is a scala-style 'lazy val'. with all the upsides
 // and downsides that would entail
+#[derive(Debug)]
 pub struct LazyVal<'f, T>(UnsafeCell<Closure<'f, T>>);
 
 impl<'f,T:'f> LazyVal<'f, T> {
@@ -196,6 +207,7 @@ impl <'f,T:'f> IntoIterator for LazyVal<'f,T> {
 }
 
 // a haskell-style thunk, single threaded
+#[derive(Debug)]
 #[repr(transparent)]
 pub struct Lazy<'f,T:'f>(pub Rc<LazyVal<'f, T>>);
 
@@ -325,6 +337,7 @@ pub mod detail {
     Box::new(|| unreachable!() )
   }
 
+  #[derive(Debug)]
   #[repr(transparent)]
   pub struct ClosureIterator<'f,T:'f>(pub Option<Closure<'f,T>>);
 
@@ -345,6 +358,7 @@ pub mod detail {
     }
   }
 
+  #[derive(Debug)]
   #[repr(transparent)]
   pub struct LazyIterator<'f, T:'f>(pub Option<Lazy<'f,T>>);
 
