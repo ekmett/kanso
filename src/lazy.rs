@@ -281,7 +281,6 @@ impl<'a,'f,T> Fn<()> for &'a Lazy<'f,T> {
 }
 */
 
-
 impl <'f, T> Borrow<T> for Lazy<'f, T> {
   fn borrow(&self) -> &T { self.get() }
 }
@@ -314,19 +313,6 @@ impl <'f, T : Clone> Future for Lazy<'f,T> {
 }
 */
 
-// can't implement alongside the above, because of the conflict with the builtin definitions for FnOnce<A> for &F
-
-pub fn main() {
-   let mut y = 12;
-   println!("{}",y);
-   let x = Lazy::new(|| { println!("x forced"); y += 1; y * 10 } );
-   let w = x.map(|r| r + 1);
-   println!("{}",w());
-   println!("{}",w.get());
-   for z in w {
-     println!("{}",z);
-   }
-}
 
 pub mod detail {
   use super::*;
@@ -386,5 +372,18 @@ pub mod detail {
     fn count(self) -> usize {
       if self.0.is_some() { 1 } else { 0 }
     }
+  }
+}
+
+pub fn main() {
+  let mut y = 12;
+  println!("{}",y);
+  let x = Lazy::new(|| { println!("x forced"); y += 1; y * 10 } );
+  let w = x.map(|r| r + 1);
+  println!("{}",w());
+  println!("{}",w.get());
+  println!("{}",*w); // deref makes for nice syntax
+  for z in w {
+    println!("{}",z);
   }
 }
