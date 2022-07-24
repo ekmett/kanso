@@ -1,8 +1,22 @@
 [package]
 name="kanso"
 version="0.1.0"
+authors=["Edward Kmett <ekmett@gmail.com>"]
+
+[features]
+parallel = []
 
 [dependencies]
-tailcall = "0.1.5"
+# tailcall = "0.1.5"
+clap = { version = "3.2.14", features = ["derive","suggestions","color","cargo","wrap_help"] }
+clap_mangen = "0.1"
+clap_complete = "3.2.3"
 lasso = { version = "0.3.1", features = ["serialize"] }
 serde = { version = "1.0.140", features = ["derive"] }
+salsa = "0.16.1"
+cfg-if = "1.0.0"
+
+[build-dependencies]
+clap = { version = "3.2.14", features = ["derive","suggestions","color","cargo","wrap_help"] }
+clap_mangen = "0.1"
+clap_complete = "3.2.3"

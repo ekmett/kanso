@@ -1,15 +1,16 @@
-RUST_SRC=$(wildcard src/*.rs)
+RUST_SRC=$(wildcard src/*.rs) build.rs
+RUST_META=Cargo.toml Cargo.lock
 PROJECT=kanso
 
 default: test
 all: test run
-doc: $(RUST_SRC) Cargo.toml
+doc: $(RUST_SRC) $(RUST_META)
 	cargo doc
 	open target/doc/$(PROJECT)/index.html
 
-test: $(RUST_SRC) Cargo.toml
+test: $(RUST_SRC) $(RUST_META)
 	cargo test
-run: $(RUST_SRC) Cargo.toml
+run: $(RUST_SRC) $(RUST_META)
 	cargo run
 clean:
 	rm -rf target
