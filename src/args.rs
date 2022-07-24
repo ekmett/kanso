@@ -15,7 +15,8 @@ pub struct Arguments {
   #[clap(short,long, value_parser, default_value_t = true)]
   pub verbose: bool,
 
-  #[clap(short,long, value_parser)]
+  // #[clap(short,long, value_parser)]
+  #[clap(short,long, arg_enum, value_name="SHELL")]
   pub completions: Option<Shell>,
 
   #[clap(subcommand)]
