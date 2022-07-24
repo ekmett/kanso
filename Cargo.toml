@@ -1,7 +1,8 @@
 [package]
-name="kanso"
-version="0.1.0"
-authors=["Edward Kmett <ekmett@gmail.com>"]
+name = "kanso"
+version = "0.1.0"
+authors = ["Edward Kmett <ekmett@gmail.com>"]
+# edition = "2021"
 
 [features]
 parallel = []
@@ -15,6 +16,7 @@ lasso = { version = "0.3.1", features = ["serialize"] }
 serde = { version = "1.0.140", features = ["derive"] }
 salsa = "0.16.1"
 cfg-if = "1.0.0"
+colored = "2.0"
 
 [build-dependencies]
 clap = { version = "3.2.14", features = ["derive","suggestions","color","cargo","wrap_help"] }

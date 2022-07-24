@@ -7,6 +7,7 @@
 #![allow(dead_code)]
 #![warn(missing_copy_implementations)]
 #![warn(missing_debug_implementations)]
+#![warn(trivial_numeric_casts)]
 
 // extern crate tailcalled;
 extern crate cfg_if;
