@@ -1,0 +1,13 @@
+===
+basic function syntax
+===
+
+foo : bar baz
+foo = 12
+
+--
+
+(source_file
+  (function
+    (lhs id)
+    (rhs (atom (id)) (atom (id))
