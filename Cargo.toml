@@ -8,6 +8,7 @@ authors = ["Edward Kmett <ekmett@gmail.com>"]
 parallel = []
 
 [dependencies]
+az = "1.2"
 # tailcall = "0.1.5"
 clap = { version = "3.2.14", features = ["derive","suggestions","color","cargo","wrap_help"] }
 clap_mangen = "0.1"
